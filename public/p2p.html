@@ -272,7 +272,7 @@ input:focus, select:focus { border-color:var(--gold); }
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="peerjs.min.js"></script>
 <script>
 (function() {
   const $ = s => document.querySelector(s);
@@ -293,18 +293,29 @@ input:focus, select:focus { border-color:var(--gold); }
   let peerTimer = null;         // timeout timer for PeerJS
 
   // ---- P2P ----
-  const PEER_CFG = {
-    host: '0.peerjs.com', port: 443, secure: true,
-    pingInterval: 5000,
-    config: { iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ]}
-  };
+  const PEER_SERVERS = [
+    { host: '0.peerjs.com', port: 443, secure: true },
+    { host: '1.peerjs.com', port: 443, secure: true },
+  ];
+  let peerServerIdx = 0;
+
+  function getPeerCfg() {
+    return {
+      ...PEER_SERVERS[peerServerIdx],
+      pingInterval: 5000,
+      config: { iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+      ]}
+    };
+  }
 
   function initPeer(roomCode, name) {
     if (myPeer) { myPeer.destroy(); }
-    myPeer = new Peer(roomCode, PEER_CFG);
+    myPeer = new Peer(roomCode, getPeerCfg());
     peerErrCount = 0;
 
     myPeer.on('open', (id) => {
@@ -336,6 +347,14 @@ input:focus, select:focus { border-color:var(--gold); }
         }, 500);
         return;
       }
+      if (peerErrCount >= 2 && peerServerIdx < PEER_SERVERS.length - 1) {
+        peerServerIdx++;
+        peerErrCount = 0;
+        toast('正在切换服务器...');
+        initPeer(roomCode, name);
+        return;
+      }
+      peerErrCount++;
       if (peerErrCount > 5) {
         toast('连接失败，请检查网络后刷新重试');
         return;
@@ -816,7 +835,7 @@ input:focus, select:focus { border-color:var(--gold); }
     isHost = false;
     startPeerTimeout();
 
-    const joinPeer = new Peer(undefined, PEER_CFG);
+    const joinPeer = new Peer(undefined, getPeerCfg());
     joinPeer.on('open', (myId) => {
       const conn = joinPeer.connect(code, { reliable: true });
       conn.on('open', () => {
