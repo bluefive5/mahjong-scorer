@@ -143,7 +143,7 @@ input:focus, select:focus { border-color:var(--gold); }
         <input type="text" id="name-input" placeholder="输入名字" maxlength="8" autocomplete="off">
       </div>
     </div>
-    <button class="btn btn-gold btn-block" id="btn-create">创建房间</button>
+    <button class="btn btn-gold btn-block" id="btn-create">创建房间（多人）</button>
     <div class="card">
       <div class="card-title">加入已有房间</div>
       <div class="input-group">
@@ -151,6 +151,35 @@ input:focus, select:focus { border-color:var(--gold); }
         <input type="text" id="join-code-input" placeholder="输入4位房间号" maxlength="4" autocomplete="off" style="text-transform:uppercase;letter-spacing:6px;font-size:22px;text-align:center;">
       </div>
       <button class="btn btn-gold btn-block" style="margin-top:8px;" id="btn-join">加入房间</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin:4px 0;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <span style="font-size:12px;color:var(--text-dim);">或</span>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
+    <button class="btn btn-outline btn-block" id="btn-solo">单人记账</button>
+  </div>
+
+  <!-- Solo Setup -->
+  <div id="view-solo-setup" class="view">
+    <div class="card">
+      <div class="card-title">单人记账 - 设置</div>
+      <div class="config-row" style="margin-bottom:12px;">
+        <div class="input-group">
+          <label>玩家人数</label>
+          <select id="solo-player-count">
+            <option value="2">2人</option><option value="3">3人</option>
+            <option value="4" selected>4人</option><option value="5">5人</option><option value="6">6人</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>1分 = 多少元</label>
+          <input type="number" id="solo-base-money" value="10" min="0.5" step="0.5">
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">输入每位玩家的名字</div>
+      <div id="solo-name-inputs"></div>
+      <button class="btn btn-gold btn-block" style="margin-top:12px;" id="btn-solo-start">开始记账</button>
     </div>
   </div>
 
@@ -251,6 +280,7 @@ input:focus, select:focus { border-color:var(--gold); }
 
   // ---- State ----
   let isHost = false;
+  let isSolo = false;
   let myPeer = null;
   let hostConn = null;          // non-host: connection to host
   let guestConns = [];          // host: connections from guests
@@ -260,6 +290,7 @@ input:focus, select:focus { border-color:var(--gold); }
   let currentView = 'home';
   let reconnectTimer = null;
   let peerErrCount = 0;
+  let peerTimer = null;         // timeout timer for PeerJS
 
   // ---- P2P ----
   const PEER_CFG = {
@@ -277,8 +308,17 @@ input:focus, select:focus { border-color:var(--gold); }
     peerErrCount = 0;
 
     myPeer.on('open', (id) => {
+      clearPeerTimeout();
       $('#status-bar').innerHTML = `<span class="conn-badge ok">已连接</span>`;
-      if (isHost) {
+    if (isSolo) {
+      const result = validateAndApplyRound(deltas);
+      if (!result.ok) return toast(result.error);
+      currentRoom = result.room;
+      currentRoom._paowinner = null; currentRoom._paoloser = null; currentRoom._zimowinner = null;
+      renderGame();
+      return;
+    }
+    if (isHost) {
         currentRoom.roomCode = id;
         showView('lobby');
         renderLobby();
@@ -545,7 +585,7 @@ input:focus, select:focus { border-color:var(--gold); }
     `).join('');
     renderRoundHistory();
     renderChips();
-    $('#btn-undo').style.display = (isHost && currentRoom.rounds?.length > 0) ? '' : 'none';
+    $('#btn-undo').style.display = ((isHost || isSolo) && currentRoom.rounds?.length > 0) ? '' : 'none';
     $('#round-history-card').style.display = currentRoom.rounds?.length > 0 ? '' : 'none';
   }
 
@@ -679,6 +719,74 @@ input:focus, select:focus { border-color:var(--gold); }
     }
   }
 
+  // ---- Solo Mode ----
+  function renderSoloSetup() {
+    const count = parseInt($('#solo-player-count')?.value) || 4;
+    const container = $('#solo-name-inputs');
+    const defaults = ['东', '南', '西', '北', '中', '发'];
+    container.innerHTML = Array.from({length: count}, (_, i) => `
+      <div class="input-group" style="margin-bottom:6px;">
+        <label>玩家 ${i+1}</label>
+        <input type="text" class="solo-name" placeholder="${defaults[i] || '玩家'+(i+1)}" maxlength="8" autocomplete="off">
+      </div>
+    `).join('');
+  }
+
+  function startSoloGame() {
+    const count = parseInt($('#solo-player-count')?.value) || 4;
+    const baseMoney = parseFloat($('#solo-base-money')?.value) || 10;
+    const nameInputs = $$('.solo-name');
+    const players = [];
+    const defaults = ['东', '南', '西', '北', '中', '发'];
+    for (let i = 0; i < count; i++) {
+      const name = (nameInputs[i]?.value?.trim()) || defaults[i] || ('玩家' + (i+1));
+      players.push({ peerId: 'solo-' + i, name, score: 0, connected: true });
+    }
+    currentRoom = {
+      roomCode: 'SOLO',
+      maxPlayers: count,
+      baseMoney,
+      players,
+      rounds: [],
+      currentRound: 1,
+      state: 'playing',
+    };
+    showView('game');
+    renderGame();
+    $('#btn-undo').style.display = 'none';
+    $('#status-bar').innerHTML = '<span class="conn-badge ok">单人模式</span>';
+  }
+
+  function saveSoloHistory() {
+    if (!currentRoom) return;
+    const entry = {
+      date: new Date().toISOString(),
+      players: currentRoom.players.map(p => ({ name: p.name, score: p.score })),
+      rounds: currentRoom.rounds,
+      baseMoney: currentRoom.baseMoney,
+    };
+    try {
+      const history = JSON.parse(localStorage.getItem('mj_history') || '[]');
+      history.unshift(entry);
+      if (history.length > 50) history.length = 50;
+      localStorage.setItem('mj_history', JSON.stringify(history));
+    } catch(e) {}
+  }
+
+  // ---- PeerJS timeout fallback ----
+  function startPeerTimeout() {
+    if (peerTimer) clearTimeout(peerTimer);
+    peerTimer = setTimeout(() => {
+      if ((isHost || !isHost) && currentRoom?.state === 'lobby' && !myPeer?.open) {
+        toast('P2P连接超时，可切换到单人记账');
+      }
+    }, 8000);
+  }
+
+  function clearPeerTimeout() {
+    if (peerTimer) { clearTimeout(peerTimer); peerTimer = null; }
+  }
+
   // ---- Events ----
   $('#btn-create').addEventListener('click', () => {
     const name = $('#name-input').value.trim();
@@ -697,6 +805,7 @@ input:focus, select:focus { border-color:var(--gold); }
     };
     myPlayerId = code + '-host';
     initPeer(code, name);
+    startPeerTimeout();
   });
 
   $('#btn-join').addEventListener('click', () => {
@@ -705,11 +814,13 @@ input:focus, select:focus { border-color:var(--gold); }
     if (!name) return toast('请输入名字');
     if (!code || code.length !== 4) return toast('请输入4位房间号');
     isHost = false;
+    startPeerTimeout();
 
     const joinPeer = new Peer(undefined, PEER_CFG);
     joinPeer.on('open', (myId) => {
       const conn = joinPeer.connect(code, { reliable: true });
       conn.on('open', () => {
+        clearPeerTimeout();
         hostConn = conn;
         conn.on('data', handleGuestMessage);
         conn.on('close', () => {
@@ -773,14 +884,15 @@ input:focus, select:focus { border-color:var(--gold); }
   $('#btn-submit-round').addEventListener('click', submitRound);
 
   $('#btn-undo').addEventListener('click', () => {
-    if (!isHost || !currentRoom || currentRoom.state !== 'playing' || !currentRoom.rounds?.length) return;
+    if (!currentRoom || currentRoom.state !== 'playing' || !currentRoom.rounds?.length) return;
+    if (!isHost && !isSolo) return;
     const last = currentRoom.rounds.pop();
     for (const [pid, delta] of Object.entries(last.deltas)) {
       const p = currentRoom.players.find(pp => pp.peerId === pid);
       if (p) p.score = Math.round((p.score - delta) * 100) / 100;
     }
     currentRoom.currentRound--;
-    broadcast({ type: 'round_undone', room: sanitizeRoom(currentRoom) });
+    if (!isSolo) broadcast({ type: 'round_undone', room: sanitizeRoom(currentRoom) });
     renderGame();
   });
 
@@ -788,18 +900,23 @@ input:focus, select:focus { border-color:var(--gold); }
     if (!currentRoom || currentRoom.state !== 'playing') return;
     if (!currentRoom.rounds?.length) return toast('至少需要一局');
     if (!confirm('确定结算？')) return;
-    if (!isHost) return toast('只有房主可以结算');
+    if (!isHost && !isSolo) return toast('只有房主可以结算');
     currentRoom.state = 'finished';
-    broadcast({ type: 'state_full', room: sanitizeRoom(currentRoom) });
+    if (isSolo) {
+      saveSoloHistory();
+    } else {
+      broadcast({ type: 'state_full', room: sanitizeRoom(currentRoom) });
+    }
     showView('settlement');
     renderSettlement();
   });
 
   $('#btn-new-game').addEventListener('click', () => {
     showView('home');
-    currentRoom = null; isHost = false;
+    currentRoom = null; isHost = false; isSolo = false;
     hostConn = null; guestConns = [];
     if (myPeer) { myPeer.destroy(); myPeer = null; }
+    clearPeerTimeout();
   });
 
   $('#lobby-code').addEventListener('click', () => {
@@ -814,6 +931,15 @@ input:focus, select:focus { border-color:var(--gold); }
 
   $('#join-code-input').addEventListener('keydown', e => { if (e.key==='Enter') $('#btn-join').click(); });
   $('#name-input').addEventListener('keydown', e => { if (e.key==='Enter') $('#btn-create').click(); });
+
+  // Solo mode
+  $('#btn-solo').addEventListener('click', () => {
+    isSolo = true; isHost = false;
+    showView('solo-setup'); renderSoloSetup();
+    $('#status-bar').innerHTML = '';
+  });
+  $('#solo-player-count')?.addEventListener('change', renderSoloSetup);
+  $('#btn-solo-start')?.addEventListener('click', startSoloGame);
 })();
 </script>
 </body>
