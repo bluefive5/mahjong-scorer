@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🀄 麻将记分器</title>
+<style>
+:root {
+  --bg: #1a2416;
+  --bg-card: #242e1d;
+  --bg-input: #2a3522;
+  --gold: #d4a843;
+  --gold-light: #e8c765;
+  --text: #e8e0d0;
+  --text-dim: #8a8578;
+  --danger: #c0392b;
+  --danger-light: #e74c3c;
+  --success: #27ae60;
+  --blue: #5b8c5a;
+  --border: #3a4a2e;
+  --radius: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+#app {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.view { display:none; flex-direction:column; gap:14px; }
+.view.active { display:flex; }
+
+/* Header */
+.header {
+  text-align: center;
+  padding: 8px 0;
+}
+.header h1 { font-size: 28px; color: var(--gold); }
+.header .sub { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+/* Cards */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gold-light);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+/* Inputs */
+.input-group { display:flex; flex-direction:column; gap:6px; }
+.input-group label { font-size: 13px; color: var(--text-dim); }
+input, select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+  -webkit-appearance: none;
+}
+input:focus, select:focus { border-color: var(--gold); }
+
+/* Buttons */
+.btn {
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+  -webkit-appearance: none;
+}
+.btn:active { transform: scale(0.97); }
+.btn-gold { background: linear-gradient(135deg, var(--gold), #b8922e); color: #1a1a1a; }
+.btn-outline { background: transparent; border: 2px solid var(--gold); color: var(--gold); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-sm { padding: 8px 14px; font-size: 13px; }
+.btn-block { width: 100%; }
+
+/* Room Code */
+.room-code {
+  text-align: center;
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: 8px;
+  color: var(--gold);
+  background: var(--bg-input);
+  border-radius: var(--radius);
+  padding: 14px;
+  user-select: all;
+  cursor: pointer;
+  border: 2px dashed var(--border);
+}
+.room-url { font-size: 11px; color: var(--text-dim); text-align: center; word-break: break-all; }
+
+/* Player List */
+.player-list { display:flex; flex-direction:column; gap:8px; }
+.player-item {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 10px 14px;
+  background: var(--bg-input);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.player-item .name { font-size: 15px; font-weight: 500; }
+.player-item .badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--gold);
+  color: #1a1a1a;
+  font-weight: 600;
+}
+.player-item.owner { border-color: var(--gold); }
+.player-item.disconnected { opacity:0.5; }
+
+/* Config row */
+.config-row { display:flex; gap:10px; align-items:end; }
+.config-row .input-group { flex:1; }
+
+/* Scoreboard */
+.scoreboard { width:100%; border-collapse:collapse; }
+.scoreboard th, .scoreboard td {
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.scoreboard th { color: var(--text-dim); font-weight:500; font-size:12px; }
+.scoreboard .rank-1 td { color: var(--gold-light); font-weight:700; }
+.scoreboard .score-pos { color: var(--success); }
+.scoreboard .score-neg { color: var(--danger-light); }
+
+/* Score Input */
+.score-input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mode-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-input);
+  border-radius: 8px;
+  padding: 3px;
+}
+.mode-tab {
+  flex: 1;
+  padding: 10px 6px;
+  text-align: center;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  -webkit-appearance: none;
+}
+.mode-tab.active { background: var(--bg-card); color: var(--gold); }
+.mode-content { display:none; }
+.mode-content.active { display:flex; flex-direction:column; gap:10px; }
+
+/* Select buttons */
+.player-select-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.player-chip {
+  padding: 10px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 2px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  transition: all 0.15s;
+  -webkit-appearance: none;
+}
+.player-chip.selected { border-color: var(--gold); background: rgba(212,168,67,0.15); color: var(--gold-light); }
+
+/* Round History */
+.round-history { max-height: 200px; overflow-y: auto; }
+.round-entry {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.round-entry .round-num { color: var(--gold); font-weight: 600; margin-right: 6px; }
+
+/* Settlement */
+.settlement-list { display:flex; flex-direction:column; gap:8px; }
+.settlement-item {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--bg-input);
+}
+.settlement-item .rank-num {
+  font-size: 20px;
+  font-weight: 800;
+  margin-right: 10px;
+  width: 32px;
+  text-align: center;
+}
+.settlement-item.winner { border-left: 3px solid var(--gold); }
+.settlement-item.loser { border-left: 3px solid var(--danger-light); }
+
+/* Toast / Error */
+.toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--danger);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 999;
+  animation: fadeIn 0.2s;
+}
+@keyframes fadeIn { from { opacity:0; transform:translateX(-50%) translateY(-10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+
+/* Status indicator */
+.status-bar {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 4px;
+}
+.status-bar.connected { color: var(--success); }
+
+/* Responsive */
+@media (max-width: 360px) {
+  .player-chip { padding: 8px 12px; font-size: 13px; }
+  .room-code { font-size: 28px; letter-spacing: 6px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>🀄 麻将记分器</h1>
+    <div class="sub" id="status-bar"></div>
+  </div>
+
+  <!-- Home View -->
+  <div id="view-home" class="view active">
+    <div class="card">
+      <div class="input-group">
+        <label>你的名字</label>
+        <input type="text" id="name-input" placeholder="输入名字" maxlength="8" autocomplete="off">
+      </div>
+    </div>
+    <button class="btn btn-gold btn-block" id="btn-create">创建房间</button>
+    <div class="card">
+      <div class="card-title">加入已有房间</div>
+      <div class="input-group">
+        <label>房间号</label>
+        <input type="text" id="join-code-input" placeholder="输入4位房间号" maxlength="4" autocomplete="off" style="text-transform:uppercase;letter-spacing:6px;font-size:22px;text-align:center;">
+      </div>
+      <button class="btn btn-gold btn-block" style="margin-top:10px;" id="btn-join">加入房间</button>
+    </div>
+  </div>
+
+  <!-- Lobby View -->
+  <div id="view-lobby" class="view">
+    <div class="card" style="text-align:center;">
+      <div class="card-title">房间号</div>
+      <div class="room-code" id="lobby-code">----</div>
+      <div class="room-url" id="lobby-url" style="margin-top:8px;font-size:12px;color:var(--text-dim);word-break:break-all;text-align:center;"></div>
+      <p style="margin-top:10px;font-size:13px;color:var(--gold);">点击上方房间号，复制分享链接发给朋友</p>
+    </div>
+    <div class="card">
+      <div class="card-title">玩家列表 (<span id="player-count">0</span>)</div>
+      <div class="player-list" id="player-list"></div>
+    </div>
+    <div class="card" id="lobby-config" style="display:none;">
+      <div class="card-title">房间设置</div>
+      <div class="config-row">
+        <div class="input-group">
+          <label>玩家人数</label>
+          <select id="config-max-players">
+            <option value="2">2人</option>
+            <option value="3">3人</option>
+            <option value="4" selected>4人</option>
+            <option value="5">5人</option>
+            <option value="6">6人</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>1分 = 多少元</label>
+          <input type="number" id="config-base-money" value="10" min="0.1" step="0.5">
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-gold btn-block" id="btn-start" style="display:none;">开始游戏</button>
+  </div>
+
+  <!-- Game View -->
+  <div id="view-game" class="view">
+    <div class="card">
+      <div class="card-title">第 <span id="round-num">1</span> 局</div>
+      <table class="scoreboard">
+        <thead><tr><th>排名</th><th>玩家</th><th>总分</th></tr></thead>
+        <tbody id="scoreboard-body"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">录入比分</div>
+      <div class="score-input-area">
+        <div class="mode-tabs">
+          <button class="mode-tab active" data-mode="pao">点炮</button>
+          <button class="mode-tab" data-mode="zimo">自摸</button>
+          <button class="mode-tab" data-mode="manual">手动</button>
+        </div>
+
+        <div class="mode-content active" id="mode-pao">
+          <div style="font-size:13px;color:var(--text-dim);">选择赢家和放炮的人</div>
+          <div class="player-select-row" id="pao-winner"></div>
+          <div style="font-size:13px;color:var(--text-dim);">谁放炮？</div>
+          <div class="player-select-row" id="pao-loser"></div>
+          <div class="input-group">
+            <label>赢的分数</label>
+            <input type="number" id="pao-score" value="8" min="1" step="1">
+          </div>
+        </div>
+
+        <div class="mode-content" id="mode-zimo">
+          <div style="font-size:13px;color:var(--text-dim);">选择自摸的人</div>
+          <div class="player-select-row" id="zimo-winner"></div>
+          <div class="input-group">
+            <label>每家给的分数</label>
+            <input type="number" id="zimo-score" value="4" min="1" step="1">
+          </div>
+          <div style="font-size:12px;color:var(--text-dim);">赢家得 <span id="zimo-total">12</span> 分，其余各扣 <span id="zimo-per">4</span> 分</div>
+        </div>
+
+        <div class="mode-content" id="mode-manual">
+          <div style="font-size:13px;color:var(--text-dim);">手动输入每位玩家本局得分（总和须为0）</div>
+          <div id="manual-inputs"></div>
+        </div>
+
+        <button class="btn btn-gold btn-block" id="btn-submit-round">确认提交</button>
+      </div>
+    </div>
+
+    <button class="btn btn-outline btn-sm" id="btn-undo" style="display:none;align-self:center;">撤销上局</button>
+
+    <div class="card" id="round-history-card" style="display:none;">
+      <div class="card-title">对局记录</div>
+      <div class="round-history" id="round-history"></div>
+    </div>
+
+    <button class="btn btn-danger btn-block" id="btn-end">结算</button>
+  </div>
+
+  <!-- Settlement View -->
+  <div id="view-settlement" class="view">
+    <div class="card">
+      <div class="card-title">结算结果</div>
+      <div class="settlement-list" id="settlement-list"></div>
+    </div>
+    <div class="card" id="settlement-detail" style="display:none;">
+      <div class="card-title">支付明细</div>
+      <div id="payment-detail" style="font-size:13px;line-height:2;"></div>
+    </div>
+    <button class="btn btn-gold btn-block" id="btn-new-game">再来一局</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function() {
+  const socket = io();
+  let currentRoom = null;
+  let myName = '';
+  let myRoomCode = '';
+  let selectedMode = 'pao';
+  let currentView = 'home';
+
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => document.querySelectorAll(sel);
+
+  function showView(name) {
+    $$('.view').forEach(v => v.classList.remove('active'));
+    $(`#view-${name}`).classList.add('active');
+    currentView = name;
+  }
+
+  function toast(msg) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2500);
+  }
+
+  function updateStatus(text, connected) {
+    const bar = $('#status-bar');
+    bar.textContent = text;
+    bar.className = connected ? 'status-bar connected' : 'status-bar';
+  }
+
+  function renderLobby(room) {
+    currentRoom = room;
+    $('#lobby-code').textContent = room.id;
+    $('#lobby-url').textContent = `访问 ${window.location.origin}，输入房间号即可加入`;
+
+    $('#player-count').textContent = room.players.length;
+    const list = $('#player-list');
+    list.innerHTML = room.players.map(p => `
+      <div class="player-item${p.id === room.owner ? ' owner' : ''}${!p.connected ? ' disconnected' : ''}">
+        <span class="name">${p.name}${p.id === socket.id ? ' (你)' : ''}</span>
+        ${p.id === room.owner ? '<span class="badge">房主</span>' : ''}
+        ${!p.connected ? '<span style="color:var(--danger-light);font-size:11px;">已断开</span>' : ''}
+      </div>
+    `).join('');
+
+    const isOwner = room.owner === socket.id;
+
+    if (isOwner) {
+      $('#lobby-config').style.display = '';
+      $('#btn-start').style.display = '';
+      $('#config-max-players').value = room.maxPlayers;
+      $('#config-base-money').value = room.baseMoney;
+    } else {
+      $('#lobby-config').style.display = 'none';
+      $('#btn-start').style.display = 'none';
+    }
+  }
+
+  // ---- Score input helpers ----
+  function getPlayers() {
+    return currentRoom?.players || [];
+  }
+
+  function renderPlayerChips(containerId, onClick, selectedId = null) {
+    const container = $(`#${containerId}`);
+    if (!container) return;
+    const players = getPlayers();
+    container.innerHTML = players.map(p => `
+      <button class="player-chip${selectedId === p.id ? ' selected' : ''}" data-pid="${p.id}">${p.name}</button>
+    `).join('');
+    container.querySelectorAll('.player-chip').forEach(chip => {
+      chip.addEventListener('click', () => onClick(chip.dataset.pid));
+    });
+  }
+
+  function renderManualInputs() {
+    const container = $('#manual-inputs');
+    if (!container) return;
+    const players = getPlayers();
+    container.innerHTML = players.map(p => `
+      <div class="input-group" style="margin-bottom:8px;">
+        <label>${p.name}</label>
+        <input type="number" class="manual-delta" data-pid="${p.id}" value="0" step="0.5" style="text-align:center;">
+      </div>
+    `).join('') + `
+      <div style="font-size:12px;color:var(--text-dim);text-align:center;margin-top:4px;">
+        总和: <span id="manual-sum" style="font-weight:700;color:var(--danger-light);">0</span>
+      </div>
+    `;
+    container.querySelectorAll('.manual-delta').forEach(inp => {
+      inp.addEventListener('input', () => {
+        let sum = 0;
+        container.querySelectorAll('.manual-delta').forEach(i => sum += parseFloat(i.value) || 0);
+        const s = $('#manual-sum');
+        if (s) {
+          s.textContent = Math.round(sum * 100) / 100;
+          s.style.color = Math.abs(sum) < 0.01 ? 'var(--success)' : 'var(--danger-light)';
+        }
+      });
+    });
+  }
+
+  function renderScoreboard(room) {
+    const sorted = [...room.players].sort((a, b) => b.score - a.score);
+    const tbody = $('#scoreboard-body');
+    if (!tbody) return;
+    $('#round-num').textContent = room.currentRound || 1;
+    tbody.innerHTML = sorted.map((p, i) => `
+      <tr class="${i === 0 ? 'rank-1' : ''}">
+        <td>${i + 1}</td>
+        <td>${p.name}</td>
+        <td class="${p.score > 0 ? 'score-pos' : p.score < 0 ? 'score-neg' : ''}">${p.score > 0 ? '+' : ''}${p.score}</td>
+      </tr>
+    `).join('');
+  }
+
+  function renderRoundHistory(room) {
+    const card = $('#round-history-card');
+    const list = $('#round-history');
+    if (!room.rounds || room.rounds.length === 0) {
+      card.style.display = 'none';
+      return;
+    }
+    card.style.display = '';
+    list.innerHTML = room.rounds.slice().reverse().map(r => {
+      const details = room.players.map(p => {
+        const d = r.deltas[p.id] || 0;
+        return `${p.name}: ${d > 0 ? '+' : ''}${d}`;
+      }).join('，');
+      return `<div class="round-entry"><span class="round-num">第${r.number}局</span>${details} (${r.submitter}录入)</div>`;
+    }).join('');
+  }
+
+  function doRenderChips() {
+    const players = getPlayers();
+    const pw = $('#pao-winner');
+    const pl = $('#pao-loser');
+    const zw = $('#zimo-winner');
+
+    if (pw) {
+      pw.innerHTML = players.map(p => 
+        `<button class="player-chip${currentRoom._paoWinner === p.id ? ' selected' : ''}" data-pid="${p.id}">${p.name}</button>`
+      ).join('');
+      pw.querySelectorAll('.player-chip').forEach(c => { c.onclick = () => {
+        currentRoom._paoWinner = c.dataset.pid;
+        if (currentRoom._paoLoser === currentRoom._paoWinner) currentRoom._paoLoser = null;
+        doRenderChips();
+      };});
+    }
+    if (pl) {
+      const losers = players.filter(p => p.id !== currentRoom._paoWinner);
+      if (currentRoom._paoWinner && currentRoom._paoLoser === currentRoom._paoWinner) currentRoom._paoLoser = null;
+      if (currentRoom._paoLoser && !losers.find(l => l.id === currentRoom._paoLoser)) currentRoom._paoLoser = null;
+      pl.innerHTML = losers.length ? losers.map(p => 
+        `<button class="player-chip${currentRoom._paoLoser === p.id ? ' selected' : ''}" data-pid="${p.id}">${p.name}</button>`
+      ).join('') : '<span style="font-size:13px;color:var(--text-dim);">请先选择赢家</span>';
+      pl.querySelectorAll('.player-chip').forEach(c => { c.onclick = () => {
+        currentRoom._paoLoser = c.dataset.pid;
+        doRenderChips();
+      };});
+    }
+    if (zw) {
+      zw.innerHTML = players.map(p => 
+        `<button class="player-chip${currentRoom._zimoWinner === p.id ? ' selected' : ''}" data-pid="${p.id}">${p.name}</button>`
+      ).join('');
+      zw.querySelectorAll('.player-chip').forEach(c => { c.onclick = () => {
+        currentRoom._zimoWinner = c.dataset.pid;
+        doRenderChips();
+        updateZimoPreview();
+      };});
+    }
+    renderManualInputs();
+  }
+
+  function updateZimoPreview() {
+    const val = parseFloat($('#zimo-score')?.value) || 4;
+    const count = (getPlayers().length - 1) || 3;
+    const totalEl = $('#zimo-total');
+    const perEl = $('#zimo-per');
+    if (totalEl) totalEl.textContent = val * count;
+    if (perEl) perEl.textContent = val;
+  }
+
+  // ---- Event handlers ----
+  function submitRound() {
+    if (!currentRoom || !myRoomCode) return;
+
+    let deltas = {};
+    const players = getPlayers();
+
+    if (selectedMode === 'pao') {
+      const winner = currentRoom._paoWinner;
+      const loser = currentRoom._paoLoser;
+      const score = parseFloat($('#pao-score').value) || 0;
+      if (!winner || !loser) return toast('请选择赢家和放炮的人');
+      if (score <= 0) return toast('请输入有效分数');
+      players.forEach(p => { deltas[p.id] = 0; });
+      deltas[winner] = score;
+      deltas[loser] = -score;
+    } else if (selectedMode === 'zimo') {
+      const winner = currentRoom._zimoWinner;
+      const score = parseFloat($('#zimo-score').value) || 0;
+      if (!winner) return toast('请选择自摸的人');
+      if (score <= 0) return toast('请输入有效分数');
+      const others = players.filter(p => p.id !== winner);
+      deltas[winner] = score * others.length;
+      others.forEach(p => { deltas[p.id] = -score; });
+    } else {
+      const inputs = $$('.manual-delta');
+      inputs.forEach(inp => { deltas[inp.dataset.pid] = parseFloat(inp.value) || 0; });
+    }
+
+    socket.emit('submit_round', { roomCode: myRoomCode, deltas });
+  }
+
+  // ---- Socket events ----
+  socket.on('connect', () => {
+    updateStatus('已连接', true);
+  });
+  socket.on('disconnect', () => {
+    updateStatus('连接断开，尝试重连...', false);
+  });
+
+  socket.on('room_created', (room) => {
+    myRoomCode = room.id;
+    currentRoom = room;
+    showView('lobby');
+    renderLobby(room);
+    updateStatus('房间已创建', true);
+  });
+
+  socket.on('room_joined', (room) => {
+    myRoomCode = room.id;
+    currentRoom = room;
+    showView('lobby');
+    renderLobby(room);
+    updateStatus('已加入房间', true);
+  });
+
+  socket.on('room_updated', (room) => {
+    currentRoom = room;
+    if (currentView === 'lobby') renderLobby(room);
+  });
+
+  socket.on('game_started', (room) => {
+    currentRoom = room;
+    currentRoom._paoWinner = null;
+    currentRoom._paoLoser = null;
+    currentRoom._zimoWinner = null;
+    myRoomCode = room.id;
+    showView('game');
+    renderScoreboard(room);
+    renderRoundHistory(room);
+    doRenderChips();
+    $('#btn-undo').style.display = 'none';
+    updateStatus('游戏中', true);
+  });
+
+  socket.on('round_completed', ({ round, room }) => {
+    currentRoom = room;
+    renderScoreboard(room);
+    renderRoundHistory(room);
+    currentRoom._paoWinner = null;
+    currentRoom._paoLoser = null;
+    currentRoom._zimoWinner = null;
+    // Reset input values
+    const paoScore = $('#pao-score'); if (paoScore) paoScore.value = 8;
+    const zimoScore = $('#zimo-score'); if (zimoScore) zimoScore.value = 4;
+    updateZimoPreview();
+    doRenderChips();
+    $('#btn-undo').style.display = room.owner === socket.id ? '' : 'none';
+  });
+
+  socket.on('round_undone', ({ room }) => {
+    currentRoom = room;
+    renderScoreboard(room);
+    renderRoundHistory(room);
+    doRenderChips();
+    $('#btn-undo').style.display = room.rounds.length > 0 && room.owner === socket.id ? '' : 'none';
+  });
+
+  socket.on('game_ended', ({ room, summary, historyEntry }) => {
+    currentRoom = room;
+    showView('settlement');
+    renderSettlement(summary, room);
+    updateStatus('已结算', true);
+  });
+
+  socket.on('player_disconnected', ({ playerName }) => {
+    toast(`${playerName} 断开了连接`);
+  });
+
+  socket.on('error_msg', (msg) => {
+    toast(msg);
+  });
+
+  function renderSettlement(summary, room) {
+    const list = $('#settlement-list');
+    list.innerHTML = summary.map((p, i) => `
+      <div class="settlement-item ${p.score > 0 ? 'winner' : p.score < 0 ? 'loser' : ''}">
+        <span class="rank-num" style="color:${i === 0 ? 'var(--gold)' : 'var(--text-dim)'}">#${i + 1}</span>
+        <span style="flex:1;">
+          <strong>${p.name}</strong>
+          <span style="margin-left:10px;font-size:13px;color:var(--text-dim);">${p.score > 0 ? '+' : ''}${p.score} 分</span>
+        </span>
+        <span style="font-size:18px;font-weight:700;color:${p.money > 0 ? 'var(--success)' : p.money < 0 ? 'var(--danger-light)' : 'var(--text-dim)'}">
+          ${p.money > 0 ? '+' : ''}${p.money} 元
+        </span>
+      </div>
+    `).join('');
+
+    const detail = $('#settlement-detail');
+    const pd = $('#payment-detail');
+    detail.style.display = '';
+    // Calculate payment directions
+    const lines = [];
+    let payers = summary.filter(p => p.money < 0).sort((a,b) => a.money - b.money);
+    let receivers = summary.filter(p => p.money > 0).sort((a,b) => b.money - a.money);
+    while (payers.length > 0 && receivers.length > 0) {
+      const payer = payers[0];
+      const receiver = receivers[0];
+      const amount = Math.min(-payer.money, receiver.money);
+      lines.push(`<span style="color:var(--danger-light);">${payer.name}</span> → <span style="color:var(--gold);">${receiver.name}</span> <strong>${amount.toFixed(1)}</strong> 元`);
+      payer.money += amount;
+      receiver.money -= amount;
+      if (Math.abs(payer.money) < 0.01) payers.shift();
+      if (Math.abs(receiver.money) < 0.01) receivers.shift();
+    }
+    pd.innerHTML = lines.join('<br>') || '<span style="color:var(--text-dim);">平局，无需支付</span>';
+  }
+
+  // ---- UI Bindings ----
+  $('#btn-create').addEventListener('click', () => {
+    myName = $('#name-input').value.trim();
+    if (!myName) return toast('请输入名字');
+    socket.emit('create_room', { playerName: myName, maxPlayers: 4, baseMoney: 10 });
+  });
+
+  $('#btn-join').addEventListener('click', () => {
+    myName = $('#name-input').value.trim();
+    const code = $('#join-code-input').value.trim();
+    if (!myName) return toast('请输入名字');
+    if (!code) return toast('请输入房间号');
+    socket.emit('join_room', { roomCode: code, playerName: myName });
+  });
+
+  $('#btn-start').addEventListener('click', () => {
+    if (!currentRoom) return;
+    const maxPlayers = parseInt($('#config-max-players').value) || 4;
+    const baseMoney = parseFloat($('#config-base-money').value) || 1;
+    socket.emit('update_config', { roomCode: currentRoom.id, maxPlayers, baseMoney });
+    socket.emit('start_game', { roomCode: currentRoom.id });
+  });
+
+  $('#config-max-players').addEventListener('change', () => {
+    if (!currentRoom) return;
+    const maxPlayers = parseInt($('#config-max-players').value) || 4;
+    const baseMoney = parseFloat($('#config-base-money').value) || 1;
+    socket.emit('update_config', { roomCode: currentRoom.id, maxPlayers, baseMoney });
+  });
+
+  $('#config-base-money').addEventListener('change', () => {
+    if (!currentRoom) return;
+    const maxPlayers = parseInt($('#config-max-players').value) || 4;
+    const baseMoney = parseFloat($('#config-base-money').value) || 1;
+    socket.emit('update_config', { roomCode: currentRoom.id, maxPlayers, baseMoney });
+  });
+
+  // Mode tabs
+  $$('.mode-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      selectedMode = tab.dataset.mode;
+      $$('.mode-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      $$('.mode-content').forEach(c => c.classList.remove('active'));
+      $(`#mode-${selectedMode}`).classList.add('active');
+    });
+  });
+
+  $('#zimo-score').addEventListener('input', updateZimoPreview);
+
+  $('#btn-submit-round').addEventListener('click', submitRound);
+
+  $('#btn-undo').addEventListener('click', () => {
+    if (!currentRoom) return;
+    socket.emit('undo_round', { roomCode: currentRoom.id });
+  });
+
+  $('#btn-end').addEventListener('click', () => {
+    if (!currentRoom) return;
+    if (currentRoom.rounds.length === 0) return toast('至少需要一局才能结算');
+    if (!confirm('确定结算？结算后不可继续计分。')) return;
+    socket.emit('end_game', { roomCode: currentRoom.id });
+  });
+
+  $('#btn-new-game').addEventListener('click', () => {
+    myName = $('#name-input').value.trim();
+    showView('home');
+    updateStatus('', true);
+    currentRoom = null;
+    myRoomCode = '';
+  });
+
+  // Copy room code on tap
+  $('#lobby-code').addEventListener('click', () => {
+    if (!currentRoom) return;
+    const url = window.location.href;
+    const text = `${url} — 房间号: ${currentRoom.id}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => toast('已复制分享链接'));
+    } else {
+      toast('房间号: ' + currentRoom.id);
+    }
+  });
+
+  // Enter key support
+  $('#join-code-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('#btn-join').click();
+  });
+  $('#name-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('#btn-create').click();
+  });
+
+  updateStatus('准备就绪', true);
+})();
+</script>
+</body>
+</html>

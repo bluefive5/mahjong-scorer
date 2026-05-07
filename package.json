@@ -1,0 +1,12 @@
+{
+  "name": "mahjong-scorer",
+  "version": "1.0.0",
+  "description": "麻将记分器 - 实时多人记分",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "socket.io": "^4.7.0"
+  }
+}

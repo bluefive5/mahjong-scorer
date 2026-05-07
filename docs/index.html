@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>麻将记分器</title>
+<style>
+:root {
+  --bg: #1a2416; --bg-card: #242e1d; --bg-input: #2a3522;
+  --gold: #d4a843; --gold-light: #e8c765; --text: #e8e0d0;
+  --text-dim: #8a8578; --danger: #c0392b; --danger-light: #e74c3c;
+  --success: #27ae60; --blue: #5b8c5a; --border: #3a4a2e;
+  --radius: 12px; --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100dvh; display: flex; justify-content: center;
+  align-items: flex-start; padding: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+#app { width:100%; max-width:420px; display:flex; flex-direction:column; gap:14px; }
+.view { display:none; flex-direction:column; gap:14px; }
+.view.active { display:flex; }
+.header { text-align:center; padding:4px 0; }
+.header h1 { font-size:26px; color:var(--gold); }
+.header .sub { font-size:12px; color:var(--text-dim); }
+.card { background:var(--bg-card); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); border:1px solid var(--border); }
+.card-title { font-size:15px; font-weight:600; color:var(--gold-light); margin-bottom:10px; text-align:center; }
+.input-group { display:flex; flex-direction:column; gap:4px; }
+.input-group label { font-size:12px; color:var(--text-dim); }
+input, select {
+  width:100%; padding:12px; border-radius:8px; border:1px solid var(--border);
+  background:var(--bg-input); color:var(--text); font-size:15px; outline:none;
+  -webkit-appearance:none;
+}
+input:focus, select:focus { border-color:var(--gold); }
+.btn {
+  padding:12px 18px; border-radius:8px; font-size:15px; font-weight:600;
+  border:none; cursor:pointer; transition:all 0.15s; text-align:center;
+  -webkit-appearance:none;
+}
+.btn:active { transform:scale(0.97); }
+.btn-gold { background:linear-gradient(135deg,var(--gold),#b8922e); color:#1a1a1a; }
+.btn-outline { background:transparent; border:2px solid var(--gold); color:var(--gold); }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-sm { padding:6px 12px; font-size:12px; }
+.btn-block { width:100%; }
+
+.room-code {
+  text-align:center; font-size:34px; font-weight:800; letter-spacing:6px;
+  color:var(--gold); background:var(--bg-input); border-radius:var(--radius);
+  padding:14px; user-select:all; cursor:pointer; border:2px dashed var(--border);
+}
+.player-list { display:flex; flex-direction:column; gap:6px; }
+.player-item {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 14px; background:var(--bg-input); border-radius:8px; border:1px solid var(--border);
+}
+.player-item .name { font-size:15px; font-weight:500; }
+.player-item .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:var(--gold); color:#1a1a1a; font-weight:600; }
+.player-item.master { border-color:var(--gold); }
+
+.config-row { display:flex; gap:8px; align-items:end; }
+.config-row .input-group { flex:1; }
+
+.scoreboard { width:100%; border-collapse:collapse; margin-bottom:6px; }
+.scoreboard th, .scoreboard td { padding:10px 6px; text-align:center; font-size:14px; border-bottom:1px solid var(--border); }
+.scoreboard th { color:var(--text-dim); font-weight:500; font-size:12px; }
+.rank-1 td { color:var(--gold-light); font-weight:700; }
+.score-pos { color:var(--success); }
+.score-neg { color:var(--danger-light); }
+
+.score-input-area { display:flex; flex-direction:column; gap:10px; }
+.mode-tabs { display:flex; gap:4px; background:var(--bg-input); border-radius:8px; padding:3px; }
+.mode-tab {
+  flex:1; padding:10px 4px; text-align:center; border-radius:6px;
+  font-size:13px; font-weight:500; cursor:pointer; background:transparent;
+  border:none; color:var(--text-dim); -webkit-appearance:none;
+}
+.mode-tab.active { background:var(--bg-card); color:var(--gold); }
+.mode-content { display:none; }
+.mode-content.active { display:flex; flex-direction:column; gap:8px; }
+
+.player-select-row { display:flex; flex-wrap:wrap; gap:6px; }
+.player-chip {
+  padding:8px 14px; border-radius:20px; font-size:13px; font-weight:500;
+  cursor:pointer; border:2px solid var(--border); background:var(--bg-input);
+  color:var(--text); transition:all 0.15s; -webkit-appearance:none;
+}
+.player-chip.selected { border-color:var(--gold); background:rgba(212,168,67,0.15); color:var(--gold-light); }
+
+.round-history { max-height:180px; overflow-y:auto; }
+.round-entry {
+  padding:6px 0; border-bottom:1px solid var(--border);
+  font-size:12px; color:var(--text-dim);
+}
+.round-entry .round-num { color:var(--gold); font-weight:600; margin-right:6px; }
+
+.settlement-list { display:flex; flex-direction:column; gap:6px; }
+.settlement-item {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px; border-radius:8px; background:var(--bg-input);
+}
+.settlement-item .rank-num { font-size:18px; font-weight:800; margin-right:8px; width:28px; text-align:center; }
+.settlement-item.win { border-left:3px solid var(--gold); }
+.settlement-item.lose { border-left:3px solid var(--danger-light); }
+
+.toast {
+  position:fixed; top:16px; left:50%; transform:translateX(-50%);
+  background:var(--danger); color:#fff; padding:10px 20px; border-radius:8px;
+  font-size:13px; z-index:999; animation:slideIn 0.25s ease;
+  pointer-events:none;
+}
+@keyframes slideIn { from{opacity:0;transform:translateX(-50%) translateY(-10px);} to{opacity:1;transform:translateX(-50%) translateY(0);} }
+
+.conn-badge {
+  font-size:11px; padding:3px 10px; border-radius:10px; display:inline-block;
+}
+.conn-badge.ok { background:var(--success); color:#fff; }
+.conn-badge.err { background:var(--danger); color:#fff; }
+.conn-badge.wait { background:var(--text-dim); color:#fff; }
+
+@media (max-width:360px) {
+  .player-chip { padding:6px 10px; font-size:12px; }
+  .room-code { font-size:28px; letter-spacing:4px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>🀄 麻将记分器</h1>
+    <div class="sub" id="status-bar"></div>
+  </div>
+
+  <!-- Home -->
+  <div id="view-home" class="view active">
+    <div class="card">
+      <div class="input-group">
+        <label>你的名字</label>
+        <input type="text" id="name-input" placeholder="输入名字" maxlength="8" autocomplete="off">
+      </div>
+    </div>
+    <button class="btn btn-gold btn-block" id="btn-create">创建房间</button>
+    <div class="card">
+      <div class="card-title">加入已有房间</div>
+      <div class="input-group">
+        <label>房间号</label>
+        <input type="text" id="join-code-input" placeholder="输入4位房间号" maxlength="4" autocomplete="off" style="text-transform:uppercase;letter-spacing:6px;font-size:22px;text-align:center;">
+      </div>
+      <button class="btn btn-gold btn-block" style="margin-top:8px;" id="btn-join">加入房间</button>
+    </div>
+  </div>
+
+  <!-- Lobby -->
+  <div id="view-lobby" class="view">
+    <div class="card" style="text-align:center;">
+      <div class="card-title">房间号</div>
+      <div class="room-code" id="lobby-code">----</div>
+      <p style="margin-top:8px;font-size:12px;color:var(--gold);">点击房间号复制，发给朋友加入</p>
+    </div>
+    <div class="card">
+      <div class="card-title">玩家列表 (<span id="player-count">0</span>)</div>
+      <div class="player-list" id="player-list"></div>
+    </div>
+    <div class="card" id="lobby-config" style="display:none;">
+      <div class="card-title">房间设置</div>
+      <div class="config-row">
+        <div class="input-group">
+          <label>玩家人数</label>
+          <select id="config-max-players">
+            <option value="2">2人</option><option value="3">3人</option>
+            <option value="4" selected>4人</option><option value="5">5人</option><option value="6">6人</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>1分 = 多少元</label>
+          <input type="number" id="config-base-money" value="10" min="0.5" step="0.5">
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-gold btn-block" id="btn-start" style="display:none;">开始游戏</button>
+  </div>
+
+  <!-- Game -->
+  <div id="view-game" class="view">
+    <div class="card">
+      <div class="card-title">第 <span id="round-num">1</span> 局</div>
+      <table class="scoreboard">
+        <thead><tr><th>排名</th><th>玩家</th><th>总分</th></tr></thead>
+        <tbody id="scoreboard-body"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">录入比分</div>
+      <div class="score-input-area">
+        <div class="mode-tabs">
+          <button class="mode-tab active" data-mode="pao">点炮</button>
+          <button class="mode-tab" data-mode="zimo">自摸</button>
+          <button class="mode-tab" data-mode="manual">手动</button>
+        </div>
+        <div class="mode-content active" id="mode-pao">
+          <div style="font-size:12px;color:var(--text-dim);">选择赢家和放炮的人</div>
+          <div class="player-select-row" id="pao-winner"></div>
+          <div style="font-size:12px;color:var(--text-dim);">谁放炮？</div>
+          <div class="player-select-row" id="pao-loser"></div>
+          <div class="input-group"><label>赢的分数</label><input type="number" id="pao-score" value="8" min="1" step="1"></div>
+        </div>
+        <div class="mode-content" id="mode-zimo">
+          <div style="font-size:12px;color:var(--text-dim);">选择自摸的人</div>
+          <div class="player-select-row" id="zimo-winner"></div>
+          <div class="input-group"><label>每家给的分数</label><input type="number" id="zimo-score" value="4" min="1" step="1"></div>
+          <div style="font-size:12px;color:var(--text-dim);">赢家得 <span id="zimo-total">12</span> 分，其余各扣 <span id="zimo-per">4</span> 分</div>
+        </div>
+        <div class="mode-content" id="mode-manual">
+          <div style="font-size:12px;color:var(--text-dim);">手动输入每位玩家本局得分（总和须为0）</div>
+          <div id="manual-inputs"></div>
+        </div>
+        <button class="btn btn-gold btn-block" id="btn-submit-round">确认提交</button>
+      </div>
+    </div>
+    <button class="btn btn-outline btn-sm" id="btn-undo" style="display:none;align-self:center;">撤销上局</button>
+    <div class="card" id="round-history-card" style="display:none;">
+      <div class="card-title">对局记录</div>
+      <div class="round-history" id="round-history"></div>
+    </div>
+    <button class="btn btn-danger btn-block" id="btn-end">结算</button>
+  </div>
+
+  <!-- Settlement -->
+  <div id="view-settlement" class="view">
+    <div class="card">
+      <div class="card-title">结算结果</div>
+      <div class="settlement-list" id="settlement-list"></div>
+    </div>
+    <div class="card" id="settlement-detail" style="display:none;">
+      <div class="card-title">支付明细</div>
+      <div id="payment-detail" style="font-size:13px;line-height:2.2;"></div>
+    </div>
+    <button class="btn btn-gold btn-block" id="btn-new-game">再来一局</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function() {
+  const $ = s => document.querySelector(s);
+  const $$ = s => document.querySelectorAll(s);
+
+  // ---- State ----
+  let isHost = false;
+  let myPeer = null;
+  let hostConn = null;          // non-host: connection to host
+  let guestConns = [];          // host: connections from guests
+  let currentRoom = null;       // local room state
+  let myPlayerId = null;
+  let selectedMode = 'pao';
+  let currentView = 'home';
+  let reconnectTimer = null;
+  let peerErrCount = 0;
+
+  // ---- P2P ----
+  const PEER_CFG = {
+    host: '0.peerjs.com', port: 443, secure: true,
+    pingInterval: 5000,
+    config: { iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ]}
+  };
+
+  function initPeer(roomCode, name) {
+    if (myPeer) { myPeer.destroy(); }
+    myPeer = new Peer(roomCode, PEER_CFG);
+    peerErrCount = 0;
+
+    myPeer.on('open', (id) => {
+      $('#status-bar').innerHTML = `<span class="conn-badge ok">已连接</span>`;
+      if (isHost) {
+        currentRoom.roomCode = id;
+        showView('lobby');
+        renderLobby();
+      }
+    });
+
+    myPeer.on('error', (err) => {
+      peerErrCount++;
+      if (err.type === 'unavailable-id') {
+        myPeer.destroy();
+        setTimeout(() => {
+          const newCode = genCode();
+          currentRoom.roomCode = newCode;
+          initPeer(newCode, name);
+        }, 500);
+        return;
+      }
+      if (peerErrCount > 5) {
+        toast('连接失败，请检查网络后刷新重试');
+        return;
+      }
+      $('#status-bar').innerHTML = `<span class="conn-badge err">连接中...</span>`;
+    });
+
+    myPeer.on('disconnected', () => {
+      $('#status-bar').innerHTML = `<span class="conn-badge err">断开</span>`;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        if (myPeer && myPeer.disconnected) {
+          myPeer.reconnect();
+        }
+      }, 2000);
+    });
+
+    // Host: handle incoming connections
+    if (isHost) {
+      myPeer.on('connection', (conn) => {
+        conn.on('open', () => {
+          conn.on('data', (msg) => handleHostMessage(msg, conn));
+          conn.on('close', () => {
+            guestConns = guestConns.filter(c => c !== conn);
+            if (currentRoom.state === 'lobby') {
+              const pname = conn._playerName;
+              currentRoom.players = currentRoom.players.filter(p => p.peerId !== pname);
+              broadcast({ type: 'state_full', room: sanitizeRoom(currentRoom) });
+              renderLobby();
+            } else {
+              const pname = conn._playerName;
+              if (pname) {
+                const p = currentRoom.players.find(pp => pp.peerId === pname);
+                if (p) p.connected = false;
+                broadcast({ type: 'state_full', room: sanitizeRoom(currentRoom) });
+              }
+            }
+            toast(conn._playerName ? `${conn._playerName} 离开了` : '有人离开了');
+          });
+          conn.on('error', () => {
+            guestConns = guestConns.filter(c => c !== conn);
+          });
+        });
+      });
+    }
+  }
+
+  function handleHostMessage(msg, conn) {
+    switch (msg.type) {
+      case 'join': {
+        const exist = currentRoom.players.find(p => p.name === msg.name);
+        if (exist && !exist.connected) {
+          exist.peerId = msg.name;
+          exist.connected = true;
+          conn._playerName = msg.name;
+          guestConns = guestConns.filter(c => c._playerName !== msg.name);
+          guestConns.push(conn);
+          conn.send({ type: 'state_full', room: sanitizeRoom(currentRoom), yourPeerId: msg.name });
+          broadcast({ type: 'state_full', room: sanitizeRoom(currentRoom) });
+          if (currentRoom.state === 'lobby') renderLobby();
+          toast(`${msg.name} 重新连接`);
+          return;
+        }
+        if (exist) { conn.send({ type: 'error', message: '该名字已被使用' }); return; }
+        if (currentRoom.state !== 'lobby') { conn.send({ type: 'error', message: '游戏已开始' }); return; }
+        if (currentRoom.players.length >= currentRoom.maxPlayers) { conn.send({ type: 'error', message: '房间已满' }); return; }
+        const player = { peerId: msg.name, name: msg.name, score: 0, connected: true };
+        currentRoom.players.push(player);
+        conn._playerName = msg.name;
+        guestConns.push(conn);
+        conn.send({ type: 'state_full', room: sanitizeRoom(currentRoom), yourPeerId: msg.name });
+        broadcast({ type: 'player_joined', player, room: sanitizeRoom(currentRoom) });
+        renderLobby();
+        toast(`${msg.name} 加入了房间`);
+        break;
+      }
+
+      case 'submit_round': {
+        if (currentRoom.state !== 'playing') return;
+        const result = validateAndApplyRound(msg.deltas);
+        if (!result.ok) { conn.send({ type: 'error', message: result.error }); return; }
+        currentRoom = result.room;
+        broadcast({ type: 'round_completed', room: sanitizeRoom(currentRoom), submitter: msg.submitter });
+        break;
+      }
+
+      case 'request_state':
+        conn.send({ type: 'state_full', room: sanitizeRoom(currentRoom), yourPeerId: conn._playerName });
+        break;
+
+      case 'undo_round': {
+        if (currentRoom.state !== 'playing' || currentRoom.rounds.length === 0) return;
+        const last = currentRoom.rounds.pop();
+        for (const [pid, delta] of Object.entries(last.deltas)) {
+          const p = currentRoom.players.find(pp => pp.peerId === pid || pp.name === pid);
+          if (p) p.score = Math.round((p.score - delta) * 100) / 100;
+        }
+        currentRoom.currentRound--;
+        broadcast({ type: 'round_undone', room: sanitizeRoom(currentRoom) });
+        break;
+      }
+    }
+  }
+
+  // Guest: handle messages from host
+  function handleGuestMessage(msg) {
+    switch (msg.type) {
+      case 'error':
+        toast(msg.message);
+        if (msg.message === '房间已满' || msg.message === '游戏已开始') {
+          showView('home');
+        }
+        break;
+      case 'state_full':
+        currentRoom = msg.room;
+        myPlayerId = msg.yourPeerId || msg.room?.players?.find(p => p.name === $('#name-input').value.trim())?.peerId;
+        if (currentRoom.state === 'lobby') { showView('lobby'); renderLobby(); }
+        else if (currentRoom.state === 'playing') { showView('game'); renderGame(); }
+        else if (currentRoom.state === 'finished') { showView('settlement'); renderSettlement(); }
+        break;
+      case 'player_joined':
+        currentRoom = msg.room;
+        renderLobby();
+        break;
+      case 'round_completed':
+        currentRoom = msg.room;
+        toast(`第${msg.room.rounds.length}局已记录 (${msg.submitter}录入)`);
+        renderGame();
+        break;
+      case 'round_undone':
+        currentRoom = msg.room;
+        toast('上局已撤销');
+        renderGame();
+        break;
+    }
+  }
+
+  function broadcast(msg) {
+    guestConns.forEach(c => { try { c.send(msg); } catch(e) {} });
+  }
+
+  function sendToHost(msg) {
+    if (hostConn) { try { hostConn.send(msg); } catch(e) { toast('连接已断开'); } }
+  }
+
+  // ---- Room Logic ----
+  function genCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+  }
+
+  function sanitizeRoom(r) {
+    return {
+      roomCode: r.roomCode,
+      maxPlayers: r.maxPlayers,
+      baseMoney: r.baseMoney,
+      players: r.players.map(p => ({ peerId: p.peerId, name: p.name, score: p.score, connected: p.connected })),
+      rounds: r.rounds,
+      currentRound: r.currentRound || (r.rounds ? r.rounds.length + 1 : 1),
+      state: r.state,
+    };
+  }
+
+  function validateAndApplyRound(deltas) {
+    for (const p of currentRoom.players) {
+      if (deltas[p.peerId] === undefined && deltas[p.name] === undefined)
+        return { ok: false, error: '所有玩家都需要有本轮分数' };
+    }
+    let sum = 0;
+    for (const [pid, val] of Object.entries(deltas)) {
+      const p = currentRoom.players.find(pp => pp.peerId === pid || pp.name === pid);
+      if (!p) return { ok: false, error: '玩家数据异常' };
+      sum += val;
+    }
+    if (Math.abs(sum) > 0.001) return { ok: false, error: '本轮分数总和必须为0' };
+
+    const normalized = {};
+    for (const [pid, val] of Object.entries(deltas)) {
+      const p = currentRoom.players.find(pp => pp.peerId === pid || pp.name === pid);
+      normalized[p.peerId] = val;
+      p.score = Math.round((p.score + val) * 100) / 100;
+    }
+
+    currentRoom.rounds.push({
+      number: currentRoom.currentRound,
+      deltas: normalized,
+      submitter: '玩家',
+      time: Date.now(),
+    });
+    currentRoom.currentRound++;
+    return { ok: true, room: currentRoom };
+  }
+
+  // ---- Render ----
+  function showView(name) {
+    $$('.view').forEach(v => v.classList.remove('active'));
+    $(`#view-${name}`).classList.add('active');
+    currentView = name;
+  }
+
+  function toast(msg) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2500);
+  }
+
+  function renderLobby() {
+    if (!currentRoom) return;
+    $('#lobby-code').textContent = currentRoom.roomCode;
+    $('#player-count').textContent = currentRoom.players.length;
+    $('#player-list').innerHTML = currentRoom.players.map(p => `
+      <div class="player-item${p.peerId === myPeer?.id ? ' master' : ''}${!p.connected ? ' style="opacity:.5;"' : ''}">
+        <span class="name">${p.name}${p.peerId === myPeer?.id ? ' (你)' : ''}</span>
+        ${p.peerId === myPeer?.id ? '<span class="badge">房主</span>' : ''}
+        ${!p.connected ? '<span style="color:var(--danger-light);font-size:11px;">已断开</span>' : ''}
+      </div>
+    `).join('');
+
+    if (isHost) {
+      $('#lobby-config').style.display = '';
+      $('#btn-start').style.display = '';
+      const mp = $('#config-max-players');
+      if (mp && !mp.dataset.init) {
+        mp.value = currentRoom.maxPlayers || 4;
+        mp.dataset.init = '1';
+      }
+      $('#config-base-money').value = currentRoom.baseMoney || 10;
+    } else {
+      $('#lobby-config').style.display = 'none';
+      $('#btn-start').style.display = 'none';
+    }
+  }
+
+  function renderGame() {
+    if (!currentRoom) return;
+    const sorted = [...currentRoom.players].sort((a, b) => b.score - a.score);
+    $('#round-num').textContent = currentRoom.currentRound || 1;
+    $('#scoreboard-body').innerHTML = sorted.map((p, i) => `
+      <tr class="${i===0?'rank-1':''}">
+        <td>${i+1}</td><td>${p.name}</td>
+        <td class="${p.score>0?'score-pos':p.score<0?'score-neg':''}">${p.score>0?'+':''}${p.score}</td>
+      </tr>
+    `).join('');
+    renderRoundHistory();
+    renderChips();
+    $('#btn-undo').style.display = (isHost && currentRoom.rounds?.length > 0) ? '' : 'none';
+    $('#round-history-card').style.display = currentRoom.rounds?.length > 0 ? '' : 'none';
+  }
+
+  function renderChips() {
+    const players = currentRoom.players || [];
+    ['pao-winner','pao-loser','zimo-winner'].forEach(id => {
+      const el = $(`#${id}`);
+      if (!el) return;
+      const prop = '_' + id.replace(/-/g, '');
+      let candidates = players;
+      if (id === 'pao-loser') candidates = players.filter(p => p.peerId !== currentRoom._paowinner);
+      el.innerHTML = candidates.length ? candidates.map(p =>
+        `<button class="player-chip${currentRoom[prop] === p.peerId ? ' selected' : ''}" data-pid="${p.peerId}">${p.name}</button>`
+      ).join('') : '<span style="font-size:12px;color:var(--text-dim);">请先选择赢家</span>';
+      el.querySelectorAll('.player-chip').forEach(c => { c.onclick = () => {
+        currentRoom[prop] = c.dataset.pid;
+        if (id === 'pao-winner') { currentRoom._paoloser = null; }
+        renderChips();
+        if (id === 'zimo-winner') updateZimoPreview();
+      };});
+    });
+    // Manual inputs
+    const mc = $('#manual-inputs');
+    if (mc) {
+      mc.innerHTML = players.map(p =>
+        `<div class="input-group" style="margin-bottom:6px;">
+          <label>${p.name}</label>
+          <input type="number" class="manual-delta" data-pid="${p.peerId}" value="0" step="0.5" style="text-align:center;">
+        </div>`
+      ).join('') + `<div style="font-size:11px;color:var(--text-dim);text-align:center;">总和:<span id="manual-sum" style="font-weight:700;color:var(--danger-light);">0</span></div>`;
+      mc.querySelectorAll('.manual-delta').forEach(inp => {
+        inp.addEventListener('input', () => { updateManualSum(); });
+      });
+    }
+  }
+
+  function updateManualSum() {
+    let sum = 0;
+    $$('.manual-delta').forEach(i => sum += parseFloat(i.value) || 0);
+    const s = $('#manual-sum');
+    if (s) { s.textContent = Math.round(sum*100)/100; s.style.color = Math.abs(sum)<0.01 ? 'var(--success)' : 'var(--danger-light)'; }
+  }
+
+  function updateZimoPreview() {
+    const val = parseFloat($('#zimo-score')?.value) || 4;
+    const count = ((currentRoom?.players?.length || 4) - 1) || 3;
+    const t = $('#zimo-total'); if (t) t.textContent = val * count;
+    const p = $('#zimo-per'); if (p) p.textContent = val;
+  }
+
+  function renderRoundHistory() {
+    const list = $('#round-history');
+    if (!list || !currentRoom.rounds?.length) return;
+    list.innerHTML = currentRoom.rounds.slice().reverse().map(r => {
+      const details = (currentRoom.players || []).map(p => {
+        const d = r.deltas?.[p.peerId] || 0;
+        return `${p.name}: ${d>0?'+':''}${d}`;
+      }).join('，');
+      return `<div class="round-entry"><span class="round-num">第${r.number}局</span>${details}</div>`;
+    }).join('');
+  }
+
+  function renderSettlement() {
+    if (!currentRoom) return;
+    const summary = [...currentRoom.players]
+      .map(p => ({ name: p.name, score: p.score, money: Math.round(p.score * (currentRoom.baseMoney||1) * 100) / 100 }))
+      .sort((a,b) => b.score - a.score);
+    $('#settlement-list').innerHTML = summary.map((p,i) => `
+      <div class="settlement-item ${p.score>0?'win':p.score<0?'lose':''}">
+        <span class="rank-num" style="color:${i===0?'var(--gold)':'var(--text-dim)'}">#${i+1}</span>
+        <span style="flex:1;"><strong>${p.name}</strong><span style="margin-left:8px;font-size:12px;color:var(--text-dim);">${p.score>0?'+':''}${p.score}分</span></span>
+        <span style="font-size:17px;font-weight:700;color:${p.money>0?'var(--success)':p.money<0?'var(--danger-light)':'var(--text-dim)'}">${p.money>0?'+':''}${p.money}元</span>
+      </div>
+    `).join('');
+    // Payment
+    const payers = summary.filter(p => p.money < 0).map(p => ({...p})).sort((a,b) => a.money - b.money);
+    const recvs = summary.filter(p => p.money > 0).map(p => ({...p})).sort((a,b) => b.money - a.money);
+    const lines = [];
+    while (payers.length && recvs.length) {
+      const amt = Math.min(-payers[0].money, recvs[0].money);
+      lines.push(`<span style="color:var(--danger-light);">${payers[0].name}</span> → <span style="color:var(--gold);">${recvs[0].name}</span> <strong>${amt.toFixed(1)}</strong>元`);
+      payers[0].money += amt; recvs[0].money -= amt;
+      if (Math.abs(payers[0].money) < 0.01) payers.shift();
+      if (Math.abs(recvs[0].money) < 0.01) recvs.shift();
+    }
+    $('#settlement-detail').style.display = '';
+    $('#payment-detail').innerHTML = lines.join('<br>') || '<span style="color:var(--text-dim);">平局，无需支付</span>';
+  }
+
+  function submitRound() {
+    if (!currentRoom || !currentRoom.players?.length) return;
+    let deltas = {};
+    const players = currentRoom.players;
+
+    if (selectedMode === 'pao') {
+      const winner = currentRoom._paowinner;
+      const loser = currentRoom._paoloser;
+      const score = parseFloat($('#pao-score')?.value) || 0;
+      if (!winner || !loser) return toast('请选择赢家和放炮的人');
+      if (score <= 0) return toast('请输入有效分数');
+      players.forEach(p => { deltas[p.peerId] = 0; });
+      deltas[winner] = score;
+      deltas[loser] = -score;
+    } else if (selectedMode === 'zimo') {
+      const winner = currentRoom._zimowinner;
+      const score = parseFloat($('#zimo-score')?.value) || 0;
+      if (!winner) return toast('请选择自摸的人');
+      if (score <= 0) return toast('请输入有效分数');
+      const others = players.filter(p => p.peerId !== winner);
+      deltas[winner] = score * others.length;
+      others.forEach(p => { deltas[p.peerId] = -score; });
+    } else {
+      $$('.manual-delta').forEach(inp => { deltas[inp.dataset.pid] = parseFloat(inp.value) || 0; });
+      let s = 0;
+      Object.values(deltas).forEach(v => s += v);
+      if (Math.abs(s) > 0.01) return toast('总和必须为0');
+    }
+
+    if (isHost) {
+      const result = validateAndApplyRound(deltas);
+      if (!result.ok) return toast(result.error);
+      currentRoom = result.room;
+      broadcast({ type: 'round_completed', room: sanitizeRoom(currentRoom), submitter: '房主' });
+      currentRoom._paowinner = null; currentRoom._paoloser = null; currentRoom._zimowinner = null;
+      renderGame();
+    } else {
+      const myName = currentRoom.players.find(p => p.peerId === myPlayerId)?.name || '玩家';
+      sendToHost({ type: 'submit_round', deltas, submitter: myName });
+      currentRoom._paowinner = null; currentRoom._paoloser = null; currentRoom._zimowinner = null;
+      renderChips();
+    }
+  }
+
+  // ---- Events ----
+  $('#btn-create').addEventListener('click', () => {
+    const name = $('#name-input').value.trim();
+    if (!name) return toast('请输入名字');
+    isHost = true;
+    const code = genCode();
+    currentRoom = {
+      roomCode: code,
+      owner: name,
+      maxPlayers: 4,
+      baseMoney: 10,
+      players: [{ peerId: code + '-host', name, score: 0, connected: true }],
+      rounds: [],
+      currentRound: 1,
+      state: 'lobby',
+    };
+    myPlayerId = code + '-host';
+    initPeer(code, name);
+  });
+
+  $('#btn-join').addEventListener('click', () => {
+    const name = $('#name-input').value.trim();
+    const code = $('#join-code-input').value.trim().toUpperCase();
+    if (!name) return toast('请输入名字');
+    if (!code || code.length !== 4) return toast('请输入4位房间号');
+    isHost = false;
+
+    const joinPeer = new Peer(undefined, PEER_CFG);
+    joinPeer.on('open', (myId) => {
+      const conn = joinPeer.connect(code, { reliable: true });
+      conn.on('open', () => {
+        hostConn = conn;
+        conn.on('data', handleGuestMessage);
+        conn.on('close', () => {
+          hostConn = null;
+          toast('与房主断开连接');
+          if (currentView !== 'home' && currentView !== 'settlement') showView('home');
+        });
+        conn.on('error', () => {
+          toast('连接出错');
+        });
+        conn.send({ type: 'join', name });
+        $('#status-bar').innerHTML = `<span class="conn-badge ok">已连接</span>`;
+      });
+      conn.on('error', (err) => {
+        toast('无法连接房间，请检查房间号');
+        joinPeer.destroy();
+      });
+      myPeer = joinPeer;
+    });
+    joinPeer.on('error', () => {
+      toast('网络连接失败，请检查网络');
+    });
+  });
+
+  $('#btn-start').addEventListener('click', () => {
+    if (!isHost || !currentRoom) return;
+    if (currentRoom.players.length < 2) return toast('至少需要2人');
+    currentRoom.state = 'playing';
+    currentRoom.players.forEach(p => { p.score = 0; });
+    currentRoom.rounds = [];
+    currentRoom.currentRound = 1;
+    broadcast({ type: 'state_full', room: sanitizeRoom(currentRoom) });
+    showView('game');
+    renderGame();
+  });
+
+  $('#config-max-players').addEventListener('change', () => {
+    if (!isHost || !currentRoom) return;
+    currentRoom.maxPlayers = parseInt($('#config-max-players').value) || 4;
+    broadcast({ type: 'state_full', room: sanitizeRoom(currentRoom) });
+  });
+
+  $('#config-base-money').addEventListener('change', () => {
+    if (!isHost || !currentRoom) return;
+    currentRoom.baseMoney = parseFloat($('#config-base-money').value) || 1;
+    broadcast({ type: 'state_full', room: sanitizeRoom(currentRoom) });
+  });
+
+  $$('.mode-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      selectedMode = tab.dataset.mode;
+      $$('.mode-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      $$('.mode-content').forEach(c => c.classList.remove('active'));
+      $(`#mode-${selectedMode}`).classList.add('active');
+      if (selectedMode === 'manual') updateManualSum();
+    });
+  });
+
+  $('#zimo-score')?.addEventListener('input', updateZimoPreview);
+  $('#btn-submit-round').addEventListener('click', submitRound);
+
+  $('#btn-undo').addEventListener('click', () => {
+    if (!isHost || !currentRoom || currentRoom.state !== 'playing' || !currentRoom.rounds?.length) return;
+    const last = currentRoom.rounds.pop();
+    for (const [pid, delta] of Object.entries(last.deltas)) {
+      const p = currentRoom.players.find(pp => pp.peerId === pid);
+      if (p) p.score = Math.round((p.score - delta) * 100) / 100;
+    }
+    currentRoom.currentRound--;
+    broadcast({ type: 'round_undone', room: sanitizeRoom(currentRoom) });
+    renderGame();
+  });
+
+  $('#btn-end').addEventListener('click', () => {
+    if (!currentRoom || currentRoom.state !== 'playing') return;
+    if (!currentRoom.rounds?.length) return toast('至少需要一局');
+    if (!confirm('确定结算？')) return;
+    if (!isHost) return toast('只有房主可以结算');
+    currentRoom.state = 'finished';
+    broadcast({ type: 'state_full', room: sanitizeRoom(currentRoom) });
+    showView('settlement');
+    renderSettlement();
+  });
+
+  $('#btn-new-game').addEventListener('click', () => {
+    showView('home');
+    currentRoom = null; isHost = false;
+    hostConn = null; guestConns = [];
+    if (myPeer) { myPeer.destroy(); myPeer = null; }
+  });
+
+  $('#lobby-code').addEventListener('click', () => {
+    if (!currentRoom) return;
+    const text = `麻将记分器 房间号: ${currentRoom.roomCode}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => toast('已复制房间号'));
+    } else {
+      toast('房间号: ' + currentRoom.roomCode);
+    }
+  });
+
+  $('#join-code-input').addEventListener('keydown', e => { if (e.key==='Enter') $('#btn-join').click(); });
+  $('#name-input').addEventListener('keydown', e => { if (e.key==='Enter') $('#btn-create').click(); });
+})();
+</script>
+</body>
+</html>
